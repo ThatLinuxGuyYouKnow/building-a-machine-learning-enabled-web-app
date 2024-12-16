@@ -1,5 +1,6 @@
 import { Buffer } from "buffer";
-import { RekognitionClient } from "@aws-sdk/client-rekognition";
+import { RekognitionClient, DetectLabelsCommand } from "@aws-sdk/client-rekognition";
+import { DetectDocumentTextCommand, TextractClient } from "@aws-sdk/client-textract";
 
 const creds = {
   region: import.meta.env.VITE_AWS_REGION,
@@ -10,20 +11,41 @@ const creds = {
   },
 };
 
-
 let rekognitionClient = null;
+let textractClient = null;
+
 export async function analyzeImageML(type, imageData) {
-  let returnData = null;
+  const uimage_bytes = base64ToUint8Array(imageData.split("data:application/octet-stream;base64,")[1]);
+  const params = {
+    Image: { Bytes: uimage_bytes },
+    MaxLabels: 10,
+    MinConfidence: 80,
+  };
+  
+  var returnData = null;
   try {
     if (type == "labels") {
-      // If the client has not been initialized yet, create it
+      // If the client has not been initalized yet, create it
       if (!rekognitionClient)  
         rekognitionClient = new RekognitionClient(creds); // pass in the creds as parameter
+      const query = new DetectLabelsCommand(params);
+      let response = await rekognitionClient.send(query);        
       returnData = {
-        // This is for test purposes, it will show a message that the client was created
-        type: "info",
-        text: "Rekognition Client Created",
+        type: "success",
+        text: response,
       };
+  } else if (type == "text") {
+      if (!textractClient) 
+        textractClient = new TextractClient(creds);
+      const params = {
+        Document: { Bytes: uimage_bytes },
+      };
+      const query = new DetectDocumentTextCommand(params);
+      let response = await textractClient.send(query);
+      returnData = {
+        type: "success",
+        text: response,
+      };  
     }
   } catch (error) {
     returnData = {
@@ -31,10 +53,8 @@ export async function analyzeImageML(type, imageData) {
       text: error.message,
     };
   }
-  return JSON.stringify(returnData);
+  return JSON.stringify(returnData);  
 }
-
-// imageData is string with data:application/octet-stream;base64,...
 
 // imageData is string with data:application/octet-stream;base64,...
 function base64ToUint8Array(base64Data) {
